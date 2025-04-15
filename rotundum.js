@@ -4,7 +4,7 @@ const { getRotundumDate, getTarotMeaning } = require('./tarot');
 
 async function getFullDailyMessage() {
   const today = new Date();
-//  const hijri = await getHijriDate(today);
+  const hijri = await getHijriDate(today);
   const { solarDay, solarWeek } = getSolarDayWeek(today);
   const gregWeek = getGregorianWeek(today);
   const rotundum = getRotundumDate(today);
@@ -28,3 +28,8 @@ To be added soon...
 }
 
 module.exports = getFullDailyMessage; // 👈 This is key
+module.exports = {
+    getHijriDate,
+    getFullDailyMessage
+  };
+  
