@@ -1,5 +1,5 @@
 const cron = require('node-cron');
-const { getFullDailyMessage } = require('./rotundum');
+const getFullDailyMessage = require('./rotundum');
 
 module.exports = function scheduleDailyMessage(client) {
   async function postMessage(channelId, prefix = '') {
