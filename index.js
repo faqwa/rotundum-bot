@@ -40,10 +40,10 @@ const tarotCards = {
 };
 
 async function getPlanetaryPositions() {
-  const API_KEY = process.env.ASTRO_API_KEY;
-  const lat = -37.8136; // Melbourne
+  const API_KEY = process.env.FREE_ASTRO_API_KEY;
+  const lat = -37.8136;
   const lon = 144.9631;
-  const now = new Date().toISOString();
+  const now = new Date();
 
   const userHouseMapping = {
     Aries: '8th House',
@@ -60,27 +60,52 @@ async function getPlanetaryPositions() {
     Pisces: '7th House'
   };
 
+  const payload = {
+    year: now.getFullYear(),
+    month: now.getMonth() + 1,
+    date: now.getDate(),
+    hours: now.getHours(),
+    minutes: now.getMinutes(),
+    seconds: now.getSeconds(),
+    latitude: lat,
+    longitude: lon,
+    timezone: 10.0,
+    settings: {
+      observation_point: "topocentric",
+      ayanamsha: "sayana"
+    }
+  };
+
   try {
     const res = await axios.post(
-      'https://api.astroapi.dev/vedic/v0/gochar/',
-      { lat, lon, datetime: now },
-      { headers: { Authorization: `Token ${API_KEY}` } }
+      'https://json.freeastrologyapi.com/planets',
+      payload,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': API_KEY
+        }
+      }
     );
 
-    return res.data.planets.map(planet => {
-      const sign = planet.sign;
+    const planets = res.data.data;
+
+    return planets.map(p => {
+      const sign = p.sign;
       const house = userHouseMapping[sign] || 'Unknown House';
       return {
-        planet: planet.name,
-        degree: `${planet.degree}° ${sign}`,
+        planet: p.name,
+        degree: `${p.degree}° ${sign}`,
         house
       };
     });
+
   } catch (err) {
-    console.error('Planetary API error:', err);
+    console.error('Planetary API error:', err.response?.data || err.message);
     return [{ planet: 'All', degree: 'Unavailable', house: 'Check API' }];
   }
 }
+
 
 
 
