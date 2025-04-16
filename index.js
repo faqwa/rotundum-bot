@@ -1,6 +1,6 @@
-// index.js (All-in-One Rotundum Bot – Expanded)
+// index.js (All-in-One Rotundum Bot – Lunar, Solar & Energetic Layers)
 require('dotenv').config();
-const { Client, GatewayIntentBits } = require('discord.js');
+const { Client, GatewayIntentBits, Partials } = require('discord.js');
 const cron = require('node-cron');
 const axios = require('axios');
 
@@ -11,10 +11,9 @@ const client = new Client({
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.DirectMessages
   ],
-  partials: ['CHANNEL']
+  partials: [Partials.Channel]
 });
 
-// --- Tarot Card Meanings (Full 22) ---
 const tarotCards = {
   1: { name: 'The Magician', meaning: 'You have the tools to manifest your vision. Create the grid. The blueprint' },
   2: { name: 'The High Priestess', meaning: 'Mystery, intuition, and inner knowledge guide your path. Insert the currents' },
@@ -41,7 +40,7 @@ const tarotCards = {
 };
 
 function getSolarDayWeek(date = new Date()) {
-  const equinox = new Date(date.getFullYear(), 2, 21); // March 21
+  const equinox = new Date(date.getFullYear(), 2, 21);
   const dayDiff = Math.floor((date - equinox) / (1000 * 60 * 60 * 24)) + 1;
   const solarDay = Math.min(dayDiff, 30);
   const solarWeek = Math.ceil(dayDiff / 7);
@@ -58,22 +57,53 @@ function getRotundumDate(date = new Date()) {
   const d = date.getDate();
   const m = date.getMonth() + 1;
   const y = date.getFullYear();
-
   const physical = d;
   const vibrational = d + m;
   const mentalRaw = d + m + y + 9;
   const mental = mentalRaw % 22 || 22;
-
-  return {
-    formatted: `${physical}-${vibrational}-${mentalRaw}`,
-    physical,
-    vibrational,
-    mental
-  };
+  return { formatted: `${physical}-${vibrational}-${mentalRaw}`, physical, vibrational, mental };
 }
 
 function getTarotMeaning(number) {
   return tarotCards[number] || { name: 'Unknown', meaning: 'Energy undefined.' };
+}
+
+async function getHijriDate(date = new Date()) {
+  const d = date.getDate(), m = date.getMonth() + 1, y = date.getFullYear();
+  try {
+    const res = await axios.get(`https://api.aladhan.com/v1/gToH?date=${d}-${m}-${y}`);
+    const hijri = res.data.data.hijri;
+    return `${hijri.day} ${hijri.month.en} ${hijri.year}`;
+  } catch (err) {
+    console.error('Hijri API error:', err);
+    return 'Hijri date unavailable';
+  }
+}
+
+async function getMoonPhaseAndSign() {
+  try {
+    const res = await axios.get('https://api.farmsense.net/v1/moonphases/?d=' + Math.floor(Date.now() / 1000));
+    const moon = res.data[0];
+    return `${moon.Phase} (${moon.Illumination}%)`;
+  } catch (err) {
+    console.error('Moon API error:', err);
+    return 'Moon data unavailable';
+  }
+}
+
+async function getPlanetaryPositions() {
+  return [
+    { planet: 'Sun', degree: '25° Aries', house: '8th House' },
+    { planet: 'Moon', degree: '18° Sagittarius', house: '4th House' },
+    { planet: 'Mercury', degree: '29° Aries → Taurus @ 02:33 AM', house: '8th → 9th House' },
+    { planet: 'Venus', degree: '14° Pisces', house: '7th House' },
+    { planet: 'Mars', degree: '3° Leo', house: '12th House' },
+    { planet: 'Jupiter', degree: '20° Taurus', house: '9th House' },
+    { planet: 'Saturn', degree: '8° Pisces', house: '7th House' },
+    { planet: 'Uranus', degree: '23° Taurus', house: '9th House' },
+    { planet: 'Neptune', degree: '27° Pisces', house: '7th House' },
+    { planet: 'Pluto', degree: '1° Aquarius', house: '6th House' }
+  ];
 }
 
 async function getFullDailyMessage() {
@@ -81,17 +111,24 @@ async function getFullDailyMessage() {
   const { solarDay, solarWeek } = getSolarDayWeek(today);
   const gregWeek = getGregorianWeek(today);
   const rotundum = getRotundumDate(today);
-
+  const hijriDate = await getHijriDate(today);
+  const moonInfo = await getMoonPhaseAndSign();
+  const planetaryData = await getPlanetaryPositions();
   const physicalTarot = getTarotMeaning(rotundum.physical);
   const vibrationalTarot = getTarotMeaning(rotundum.vibrational);
   const mentalTarot = getTarotMeaning(rotundum.mental);
+  const mentalFull = rotundum.physical + rotundum.vibrational + today.getFullYear() + 9;
+
+  const planetarySection = planetaryData.map(p => `${p.planet} — ${p.degree} (${p.house})`).join('\n');
 
   return `✨ Hey Ali
 
+🍍 **Hijri Date:** ${hijriDate}
+🗓️ **Gregorian:** ${today.toDateString()} (Week ${gregWeek})
+🌙 **Moon:** ${moonInfo}
+
 **Solar Day:** ${solarDay}  
 **Solar Week:** ${solarWeek}
-
-🗓️ **Gregorian:** ${today.toDateString()} (Week ${gregWeek})
 
 🧬 **Rotundum Energies:**  
 Physical = ${rotundum.physical} — **${physicalTarot.name}**  
@@ -104,7 +141,15 @@ Mental = ${rotundum.mental} — **${mentalTarot.name}**
 > ${mentalTarot.meaning}
 
 📜 **This Month’s Theme:**  
-To be added soon...`;
+To be added soon...
+
+🔁 **Rotundum Date Breakdown:**  
+Physical = ${rotundum.physical}  
+Emotional = ${rotundum.vibrational}  
+Mental = ${mentalFull}
+
+🪐 **Planetary Positions:**  
+${planetarySection}`;
 }
 
 function scheduleDailyMessage(client) {
