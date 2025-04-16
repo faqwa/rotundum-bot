@@ -39,6 +39,51 @@ const tarotCards = {
   22: { name: 'The Fool', meaning: 'A new beginning calls — trust the unknown. Take the first step' }
 };
 
+async function getPlanetaryPositions() {
+  const API_KEY = process.env.ASTRO_API_KEY;
+  const lat = -37.8136; // Melbourne
+  const lon = 144.9631;
+  const now = new Date().toISOString();
+
+  const userHouseMapping = {
+    Aries: '8th House',
+    Taurus: '9th House',
+    Gemini: '10th House',
+    Cancer: '11th House',
+    Leo: '12th House',
+    Virgo: '1st House',
+    Libra: '2nd House',
+    Scorpio: '3rd House',
+    Sagittarius: '4th House',
+    Capricorn: '5th House',
+    Aquarius: '6th House',
+    Pisces: '7th House'
+  };
+
+  try {
+    const res = await axios.post(
+      'https://api.astroapi.dev/vedic/v0/gochar/',
+      { lat, lon, datetime: now },
+      { headers: { Authorization: `Token ${API_KEY}` } }
+    );
+
+    return res.data.planets.map(planet => {
+      const sign = planet.sign;
+      const house = userHouseMapping[sign] || 'Unknown House';
+      return {
+        planet: planet.name,
+        degree: `${planet.degree}° ${sign}`,
+        house
+      };
+    });
+  } catch (err) {
+    console.error('Planetary API error:', err);
+    return [{ planet: 'All', degree: 'Unavailable', house: 'Check API' }];
+  }
+}
+
+
+
 function getSolarDayWeek(date = new Date()) {
   const equinox = new Date(date.getFullYear(), 2, 21);
   const dayDiff = Math.floor((date - equinox) / (1000 * 60 * 60 * 24)) + 1;
@@ -92,18 +137,90 @@ async function getMoonPhaseAndSign() {
 }
 
 async function getPlanetaryPositions() {
-  return [
-    { planet: 'Sun', degree: '25° Aries', house: '8th House' },
-    { planet: 'Moon', degree: '18° Sagittarius', house: '4th House' },
-    { planet: 'Mercury', degree: '29° Aries → Taurus @ 02:33 AM', house: '8th → 9th House' },
-    { planet: 'Venus', degree: '14° Pisces', house: '7th House' },
-    { planet: 'Mars', degree: '3° Leo', house: '12th House' },
-    { planet: 'Jupiter', degree: '20° Taurus', house: '9th House' },
-    { planet: 'Saturn', degree: '8° Pisces', house: '7th House' },
-    { planet: 'Uranus', degree: '23° Taurus', house: '9th House' },
-    { planet: 'Neptune', degree: '27° Pisces', house: '7th House' },
-    { planet: 'Pluto', degree: '1° Aquarius', house: '6th House' }
-  ];
+  const API_KEY = process.env.FREE_ASTRO_API_KEY;
+  const lat = -37.8136; // Example: Melbourne
+  const lon = 144.9631;
+  const now = new Date();
+
+  const userHouseMapping = {
+    Aries: '8th House',
+    Taurus: '9th House',
+    Gemini: '10th House',
+    Cancer: '11th House',
+    Leo: '12th House',
+    Virgo: '1st House',
+    Libra: '2nd House',
+    Scorpio: '3rd House',
+    Sagittarius: '4th House',
+    Capricorn: '5th House',
+    Aquarius: '6th House',
+    Pisces: '7th House'
+  };
+
+  const payload = {
+    year: now.getFullYear(),
+    month: now.getMonth() + 1,
+    date: now.getDate(),
+    hours: now.getHours(),
+    minutes: now.getMinutes(),
+    seconds: now.getSeconds(),
+    latitude: lat,
+    longitude: lon,
+    timezone: 10.0, // Melbourne TZ
+    settings: {
+      observation_point: "topocentric",
+      ayanamsha: "sayana" // ← Tropical zodiac
+    }
+  };
+
+  try {
+    const res = await axios.post(
+      'https://json.freeastrologyapi.com/planets',
+      payload,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': API_KEY
+        }
+      }
+    );
+
+    return res.data.map(p => {
+      const sign = p.sign;
+      const house = userHouseMapping[sign] || 'Unknown House';
+      return {
+        planet: p.name,
+        degree: `${p.degree}° ${sign}`,
+        house
+      };
+    });
+  } catch (err) {
+    console.error('Planetary API error:', err.response?.data || err.message);
+    return [{ planet: 'All', degree: 'Unavailable', house: 'Check API' }];
+  }
+}
+
+
+async function getSolarActivity() {
+  try {
+    const response = await axios.get('https://services.swpc.noaa.gov/json/planetary_k_index_1m.json');
+    const latest = response.data[response.data.length - 1];
+
+    const kpIndex = latest.kp_index;
+    const time = latest.time_tag;
+
+    let condition = 'Unknown';
+    if (kpIndex < 4) condition = 'Quiet';
+    else if (kpIndex === 4) condition = 'Unsettled';
+    else if (kpIndex === 5) condition = 'Minor Geomagnetic Storm';
+    else if (kpIndex === 6) condition = 'Moderate Geomagnetic Storm';
+    else if (kpIndex >= 7) condition = 'Severe Geomagnetic Storm';
+
+    return `☀️ **Solar Activity (${new Date(time).toUTCString()}):**\nKp Index = ${kpIndex} → ${condition}`;
+  } catch (error) {
+    console.error('Solar Activity API error:', error);
+    return '☀️ **Solar Activity:** Data unavailable';
+  }
 }
 
 async function getFullDailyMessage() {
@@ -118,12 +235,12 @@ async function getFullDailyMessage() {
   const vibrationalTarot = getTarotMeaning(rotundum.vibrational);
   const mentalTarot = getTarotMeaning(rotundum.mental);
   const mentalFull = rotundum.physical + rotundum.vibrational + today.getFullYear() + 9;
-
   const planetarySection = planetaryData.map(p => `${p.planet} — ${p.degree} (${p.house})`).join('\n');
+  const solarActivity = await getSolarActivity();
 
   return `✨ Hey Ali
 
-🍍 **Hijri Date:** ${hijriDate}
+🕌 **Hijri Date:** ${hijriDate}
 🗓️ **Gregorian:** ${today.toDateString()} (Week ${gregWeek})
 🌙 **Moon:** ${moonInfo}
 
@@ -149,8 +266,11 @@ Emotional = ${rotundum.vibrational}
 Mental = ${mentalFull}
 
 🪐 **Planetary Positions:**  
-${planetarySection}`;
+${planetarySection}
+
+${solarActivity}`;
 }
+
 
 function scheduleDailyMessage(client) {
   async function postMessage() {
